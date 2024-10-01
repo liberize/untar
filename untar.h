@@ -585,7 +585,7 @@ static int default_on_entry_header(tar_header_parsed_t *entry, void *userdata) {
     return 0;
 }
 
-static int default_on_entry_data_chunk(tar_header_parsed_t *entry, const unsigned char *data, int size, void *userdata) {
+static int default_on_entry_data(tar_header_parsed_t *entry, const unsigned char *data, int size, void *userdata) {
     tar_default_userdata_t *ud = (tar_default_userdata_t*) userdata;
     if (ud->fp_writer != NULL)
         if (fwrite(data, 1, size, ud->fp_writer) != size)
@@ -657,7 +657,7 @@ static int untar_fp(FILE *fp) {
     tar_parse_cb_t cb;
     cb.read = fp_read;
     cb.on_entry_header = default_on_entry_header;
-    cb.on_entry_data = default_on_entry_data_chunk;
+    cb.on_entry_data = default_on_entry_data;
     cb.on_entry_end = default_on_entry_end;
     cb.userdata = &ud;
     return untar_cb(cb);
@@ -672,7 +672,7 @@ static int untar_mem(const unsigned char *data, size_t len) {
     tar_parse_cb_t cb;
     cb.read = mem_read;
     cb.on_entry_header = default_on_entry_header;
-    cb.on_entry_data = default_on_entry_data_chunk;
+    cb.on_entry_data = default_on_entry_data;
     cb.on_entry_end = default_on_entry_end;
     cb.userdata = &ud;
     return untar_cb(cb);
