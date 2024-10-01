@@ -277,6 +277,14 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
             parsed->linkpath = context->longlink;
     }
 
+    int chksum = 0;
+    for (int i = 0; i < TAR_BLOCK_SIZE; ++i)
+        chksum += (i < 148 || i > 155) ? ((unsigned char*) raw)[i] : 0x20;
+    if (chksum != parsed->chksum) {
+        LOGE("Checksum not match! expected=%d got=%llu", chksum, parsed->chksum);
+        return -1;
+    }
+
     return 0;
 }
 
