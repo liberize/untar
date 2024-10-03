@@ -22,11 +22,6 @@
 
 #pragma once
 #include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <time.h>
 
 typedef enum tar_entry_type_e {
     // v7
@@ -56,7 +51,7 @@ typedef struct tar_header_parsed_s {
     unsigned long long size;
     double mtime;
     unsigned long long chksum;
-    tar_entry_type_t typeflag;
+    tar_entry_type_t type;
     char *linkpath;
 
     char magic[8];
@@ -88,16 +83,25 @@ typedef struct tar_parse_cb_s {
     void *userdata;
 } tar_parse_cb_t;
 
-
+// extract from file to disk
 static int untar(const char *filename);
+// extract from file descriptor to disk
 static int untar_fd(int fd);
+// extract from FILE pointer to disk
 static int untar_fp(FILE *fp);
+// extract from mem data to disk
 static int untar_mem(const unsigned char *data, size_t len);
+// extract with custom callbacks
 static int untar_cb(tar_parse_cb_t cb);
 
 
 // --- implementation ---
 
+#include <string.h>
+#include <math.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -111,6 +115,7 @@ static int untar_cb(tar_parse_cb_t cb);
 #define stat         _stat
 #define lstat        _stat
 #define unlink       _unlink
+#define dup          _dup
 #define mkdir(d, m)  _mkdir(d)
 #define chmod(...)
 #define S_ISDIR(m)   (((m) & _S_IFMT) == _S_IFDIR)
@@ -230,7 +235,7 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
     parsed->size   = decode_number(raw->size, sizeof(raw->size));
     parsed->mtime  = decode_number(raw->mtime, sizeof(raw->mtime));
     parsed->chksum = decode_number(raw->chksum, sizeof(raw->chksum));
-    parsed->typeflag = raw->typeflag;
+    parsed->type   = raw->typeflag;
     strncpy(parsed->linkpath, raw->linkname, sizeof(raw->linkname));
     memcpy(parsed->magic, raw->magic, sizeof(raw->magic));
     
@@ -371,8 +376,8 @@ static void reset_overrides(tar_context_t *context) {
 }
 
 static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entry) {
-    LOGD("Found entry. index=%d type=%c path=%s size=%llu", context->entry_index, entry->typeflag, entry->path, entry->size);
-    switch (entry->typeflag) {
+    LOGD("Found entry. index=%d type=%c path=%s size=%llu", context->entry_index, entry->type, entry->path, entry->size);
+    switch (entry->type) {
         case TAR_T_LONGNAME:
             free(context->longname);
             context->longname_wpos = 0;
@@ -413,7 +418,7 @@ static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entr
 }
 
 static int handle_entry_data(tar_context_t *context, tar_header_parsed_t *entry, unsigned char *block, int length) {
-    switch (entry->typeflag) {
+    switch (entry->type) {
         case TAR_T_LONGNAME:
             memcpy(context->longname + context->longname_wpos, block, length);
             context->longname_wpos += length;
@@ -438,7 +443,7 @@ static int handle_entry_data(tar_context_t *context, tar_header_parsed_t *entry,
 }
 
 static int handle_entry_end(tar_context_t *context, tar_header_parsed_t *entry) {
-    switch (entry->typeflag) {
+    switch (entry->type) {
         case TAR_T_LONGNAME:
         case TAR_T_LONGLINK:
             break;
@@ -533,7 +538,7 @@ static int default_on_entry_header(tar_header_parsed_t *entry, void *userdata) {
     } else
         unlink(entry->path);
     
-    switch (entry->typeflag) {
+    switch (entry->type) {
         case TAR_T_REGULAR1:
         case TAR_T_REGULAR2:
         case TAR_T_CONTIGUOUS: {
@@ -647,6 +652,11 @@ static int untar(const char *filename) {
 }
 
 static int untar_fd(int fd) {
+    fd = dup(fd);
+    if (fd < 0) {
+        LOGE("Failed to make a duplicate of fd!");
+        return -1;
+    }
     FILE *fp = fdopen(fd, "rb");
     if (fp == NULL) {
         LOGE("Failed to open fd for reading!");

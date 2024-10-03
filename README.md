@@ -13,12 +13,16 @@ Single file untar library, support the following tar formats:
 Just `#include "untar.h"`, then use one of the following untar functions:
 
 ```c
-// extract to disk
+
+// extract from file to disk
 int untar(const char *filename);
+// extract from file descriptor to disk
 int untar_fd(int fd);
+// extract from FILE pointer to disk
 int untar_fp(FILE *fp);
+// extract from mem data to disk
 int untar_mem(const unsigned char *data, size_t len);
 
-// extract with callbacks, checkout untar_fp/untar_mem source code for examples
+// extract with custom callbacks, checkout untar_fp/untar_mem source code for examples
 int untar_cb(tar_parse_cb_t cb);
 ```
