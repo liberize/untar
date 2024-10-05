@@ -381,7 +381,7 @@ static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entr
         case TAR_T_LONGNAME:
             free(context->longname);
             context->longname_wpos = 0;
-            context->longname = (char*) malloc(entry->size);
+            context->longname = (char*) malloc(entry->size + 1);
             if (!context->longname) {
                 LOGE("Unable to alloc memory for long name! size=%llu", entry->size);
                 return -1;
@@ -390,7 +390,7 @@ static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entr
         case TAR_T_LONGLINK:
             free(context->longlink);
             context->longlink_wpos = 0;
-            context->longlink = (char*) malloc(entry->size);
+            context->longlink = (char*) malloc(entry->size + 1);
             if (!context->longlink) {
                 LOGE("Unable to alloc memory for long linkname! size=%llu", entry->size);
                 return -1;
@@ -402,7 +402,7 @@ static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entr
             memset(&context->pax_parsed, 0, sizeof(context->pax_parsed));
             free(context->pax_header);
             context->pax_wpos = 0;
-            context->pax_header = (char*) malloc(entry->size);
+            context->pax_header = (char*) malloc(entry->size + 1);
             if (!context->pax_header) {
                 LOGE("Unable to alloc memory for pax header! size=%llu", entry->size);
                 return -1;
@@ -445,11 +445,15 @@ static int handle_entry_data(tar_context_t *context, tar_header_parsed_t *entry,
 static int handle_entry_end(tar_context_t *context, tar_header_parsed_t *entry) {
     switch (entry->type) {
         case TAR_T_LONGNAME:
+            context->longname[context->longname_wpos] = '\0';
+            break;
         case TAR_T_LONGLINK:
+            context->longlink[context->longlink_wpos] = '\0';
             break;
         case TAR_T_GLOBALEXTENDED:
             break;      // ignore for now
         case TAR_T_EXTENDED: {
+            context->pax_header[context->pax_wpos] = '\0';
             int r = parse_pax_header(context);
             if (r != 0)
                 LOGE("Failed to parse pax header! ret=%d", r);
@@ -660,6 +664,7 @@ static int untar_fd(int fd) {
     FILE *fp = fdopen(fd, "rb");
     if (fp == NULL) {
         LOGE("Failed to open fd for reading!");
+        close(fd);
         return -1;
     }
     int r = untar_fp(fp);
