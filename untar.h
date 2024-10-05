@@ -123,6 +123,9 @@ static int untar_cb(tar_parse_cb_t cb);
 #else
 #include <sys/time.h>
 #include <unistd.h>
+#if !defined(__cplusplus) && !defined(__STDC_VERSION__)
+#define strtoull     strtoul
+#endif
 #endif
 
 #define LOGD(fmt, ...) fprintf(stdout, fmt "\n", ##__VA_ARGS__)
@@ -237,7 +240,7 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
     parsed->size   = decode_number(raw->size, sizeof(raw->size));
     parsed->mtime  = decode_number(raw->mtime, sizeof(raw->mtime));
     parsed->chksum = decode_number(raw->chksum, sizeof(raw->chksum));
-    parsed->type   = raw->typeflag;
+    parsed->type   = (tar_entry_type_t) raw->typeflag;
     strncpy(parsed->linkpath, raw->linkname, sizeof(raw->linkname));
     memcpy(parsed->magic, raw->magic, sizeof(raw->magic));
     
@@ -599,6 +602,8 @@ static int default_on_entry_header(tar_header_parsed_t *entry, void *userdata) {
             }
             break;
 #endif
+        default:
+            break;
     }
     chmod(entry->path, entry->mode);
     return 0;
