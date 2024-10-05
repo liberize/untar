@@ -21,24 +21,25 @@
  */
 
 #pragma once
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 
 typedef enum tar_entry_type_e {
-    // v7
+    /* v7 */
     TAR_T_REGULAR1 = 0,
     TAR_T_REGULAR2 = '0',
     TAR_T_HARD = '1',
     TAR_T_SYMBOLIC = '2',
-    // ustar
+    /* ustar */
     TAR_T_CHARSPECIAL = '3',
     TAR_T_BLOCKSPECIAL = '4',
     TAR_T_DIRECTORY = '5',
     TAR_T_FIFO = '6',
     TAR_T_CONTIGUOUS = '7',
-    // gnu
+    /* gnu */
     TAR_T_LONGNAME = 'L',
     TAR_T_LONGLINK = 'K',
-    // pax
+    /* pax */
     TAR_T_GLOBALEXTENDED = 'g',
     TAR_T_EXTENDED = 'x',
 } tar_entry_type_t;
@@ -63,7 +64,7 @@ typedef struct tar_header_parsed_s {
     double atime;
     double ctime;
 
-    // internal buffers
+    /* internal buffers */
     char path_buf[257];
     char linkpath_buf[101];
     char uname_buf[33];
@@ -71,31 +72,31 @@ typedef struct tar_header_parsed_s {
 } tar_header_parsed_t;
 
 typedef struct tar_parse_cb_s {
-    // user provided function to read data from tar archive
+    /* user provided function to read data from tar archive */
     int (*read) (unsigned char *buffer, int size, void *userdata);
-    // user provided function to handle tar entry header, return non-zero value to abort
+    /* user provided function to handle tar entry header, return non-zero value to abort */
     int (*on_entry_header) (tar_header_parsed_t *entry, void *userdata);
-    // user provided function to handle tar entry data chunk, may be called multiple times, return non-zero value to abort
+    /* user provided function to handle tar entry data chunk, may be called multiple times, return non-zero value to abort */
     int (*on_entry_data) (tar_header_parsed_t *entry, const unsigned char *data, int size, void *userdata);
-    // user provided function to handle tar entry ending, return non-zero value to abort
+    /* user provided function to handle tar entry ending, return non-zero value to abort */
     int (*on_entry_end) (tar_header_parsed_t *entry, void *userdata);
-    // user data that will be passed transparently to functions above
+    /* user data that will be passed transparently to functions above */
     void *userdata;
 } tar_parse_cb_t;
 
-// extract from file to disk
+/* extract from file to disk */
 static int untar(const char *filename);
-// extract from file descriptor to disk
+/* extract from file descriptor to disk */
 static int untar_fd(int fd);
-// extract from FILE pointer to disk
+/* extract from FILE pointer to disk */
 static int untar_fp(FILE *fp);
-// extract from mem data to disk
+/* extract from mem data to disk */
 static int untar_mem(const unsigned char *data, size_t len);
-// extract with custom callbacks
+/* extract with custom callbacks */
 static int untar_cb(tar_parse_cb_t cb);
 
 
-// --- implementation ---
+/* --- implementation --- */
 
 #include <string.h>
 #include <math.h>
@@ -117,7 +118,7 @@ static int untar_cb(tar_parse_cb_t cb);
 #define unlink       _unlink
 #define dup          _dup
 #define mkdir(d, m)  _mkdir(d)
-#define chmod(...)
+#define chmod(p, m)
 #define S_ISDIR(m)   (((m) & _S_IFMT) == _S_IFDIR)
 #else
 #include <sys/time.h>
@@ -130,7 +131,7 @@ static int untar_cb(tar_parse_cb_t cb);
 #define TAR_BLOCK_SIZE 512
 
 typedef struct tar_header_s {
-    // v7 (pre-POSIX.1-1988)
+    /* v7 (pre-POSIX.1-1988) */
     char name[100];
     char mode[8];
     char uid[8];
@@ -138,22 +139,22 @@ typedef struct tar_header_s {
     char size[12];
     char mtime[12];
     char chksum[8];
-    char typeflag;      // or linkflag
+    char typeflag;      /* or linkflag */
     char linkname[100];
 
-    // ustar (POSIX 1003.1)
-    char magic[8];      // 6 bytes magic + 2 bytes version
+    /* ustar (POSIX 1003.1) */
+    char magic[8];      /* 6 bytes magic + 2 bytes version */
     char uname[32];
     char gname[32];
     char devmajor[8];
     char devminor[8];
     union {
         char prefix[155];
-        // gnu
+        /* gnu */
         struct {
             char atime[12];
             char ctime[12];
-            // ...
+            /* ... */
         };
     };
 } tar_header_t;
@@ -176,19 +177,19 @@ typedef struct pax_header_parsed_s {
     char *linkpath;
     char *uname;
     char *gname;
-    // ...
+    /* ... */
 } pax_header_parsed_t;
 
 typedef struct tar_context_s {
     int entry_index;
     int empty_count;
     tar_parse_cb_t cb;
-    // gnu
+    /* gnu */
     char *longname;
     int longname_wpos;
     char *longlink;
     int longlink_wpos;
-    // pax
+    /* pax */
     char *pax_header;
     int pax_wpos;
     pax_header_parsed_t pax_parsed;
@@ -203,16 +204,16 @@ typedef struct tar_default_userdata_s {
 } tar_default_userdata_t;
 
 static unsigned long long decode_number(char *buffer, int size) {
+    int i = 0;
     unsigned long long r = 0;
     unsigned char *p = (unsigned char*)buffer;
-    if ((p[0] & 0x80) != 0) {    // base256, gnu
+    if ((p[0] & 0x80) != 0) {    /* base256, gnu */
         int negative = p[0] & 0x40;
         r = negative ? p[0] : (p[0] & 0x7f);
-        for (int i = 1; i < size; i++) {
+        for (i = 1; i < size; i++) {
             r = (r << 8) | p[i];
         }
-    } else {    // oct
-        int i = 0;
+    } else {    /* oct */
         for (; i < size && buffer[i] == ' '; i++);
         for (; i < size && buffer[i] >= '0' && buffer[i] <= '7'; i++) {
             r = (r << 3) | (buffer[i] - '0');
@@ -222,6 +223,7 @@ static unsigned long long decode_number(char *buffer, int size) {
 }
 
 static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_parsed_t *parsed) {
+    int i, chksum;
     memset(parsed, 0, sizeof(tar_header_parsed_t));
 
     parsed->path = parsed->path_buf;
@@ -244,11 +246,11 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
     parsed->devmajor = decode_number(raw->devmajor, sizeof(raw->devmajor));
     parsed->devminor = decode_number(raw->devminor, sizeof(raw->devminor));
     
-    if (strcmp(parsed->magic, "ustar") == 0) {  // ustar
+    if (strcmp(parsed->magic, "ustar") == 0) {  /* ustar */
         strncpy(parsed->path, raw->prefix, sizeof(raw->prefix));
         if (parsed->path[0])
             strcat(parsed->path, "/");
-    } else if (strcmp(parsed->magic, "ustar  ") == 0) {  // gnu
+    } else if (strcmp(parsed->magic, "ustar  ") == 0) {  /* gnu */
         parsed->atime = decode_number(raw->atime, sizeof(raw->atime));
         parsed->ctime = decode_number(raw->ctime, sizeof(raw->ctime));
     }
@@ -282,8 +284,8 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
             parsed->linkpath = context->longlink;
     }
 
-    int chksum = 0;
-    for (int i = 0; i < TAR_BLOCK_SIZE; ++i)
+    chksum = 0;
+    for (i = 0; i < TAR_BLOCK_SIZE; ++i)
         chksum += (i < 148 || i > 155) ? ((unsigned char*) raw)[i] : 0x20;
     if (chksum != parsed->chksum) {
         LOGE("Checksum not match! expected=%d got=%llu", chksum, parsed->chksum);
@@ -293,8 +295,8 @@ static int parse_header(tar_context_t *context, tar_header_t *raw, tar_header_pa
     return 0;
 }
 
-// https://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html#tag_20_92_13_03
-// TODO: convert charset
+/* https://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html#tag_20_92_13_03 */
+/* TODO: convert charset */
 static int parse_pax_header(tar_context_t *context) {
     char *line_beg = context->pax_header, *end = line_beg + context->pax_wpos;
     char *line_end, *p;
@@ -397,7 +399,7 @@ static int handle_entry_header(tar_context_t *context, tar_header_parsed_t *entr
             }
             break;
         case TAR_T_GLOBALEXTENDED:
-            break;      // ignore for now
+            break;      /* ignore for now */
         case TAR_T_EXTENDED:
             memset(&context->pax_parsed, 0, sizeof(context->pax_parsed));
             free(context->pax_header);
@@ -451,7 +453,7 @@ static int handle_entry_end(tar_context_t *context, tar_header_parsed_t *entry) 
             context->longlink[context->longlink_wpos] = '\0';
             break;
         case TAR_T_GLOBALEXTENDED:
-            break;      // ignore for now
+            break;      /* ignore for now */
         case TAR_T_EXTENDED: {
             context->pax_header[context->pax_wpos] = '\0';
             int r = parse_pax_header(context);
@@ -499,7 +501,7 @@ static int mkdir_recursive(char *dir, int mode) {
 }
 
 #ifdef _WIN32
-// target is relative to current dir, not to path of this entry (tested with gnu tar)
+/* target is relative to current dir, not to path of this entry (tested with gnu tar) */
 static int link(const char *target, const char *path) {
     return CreateHardLinkA(path, target, NULL) ? 0 : -1;
 }
@@ -507,15 +509,15 @@ static int link(const char *target, const char *path) {
 static int symlink(char *target, const char *path) {
     char target_full[PATH_MAX];
     strcat(dir_name(path, target_full), target);
-    //FIXME: if target hasn't been extracted yet, flag may be wrong
+    /* FIXME: if target hasn't been extracted yet, flag may be wrong */
     DWORD flags = (is_dir(target_full) ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0) | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
     for (int i = 0; target[i]; i++)
         if (target[i] == '/')
             target[i] = '\\';
-    return CreateSymbolicLinkA(path, target, flags) ? 0 : -1;  // need privileges
+    return CreateSymbolicLinkA(path, target, flags) ? 0 : -1;  /* need privileges */
 }
 
-// windows has _utime, but it's usage is different from utimes and limited to 1 second precision
+/* windows has _utime, but it's usage is different from utimes and limited to 1 second precision */
 static int lutimes(const char *filename, const struct timeval tv[2]) {
     DWORD flags = is_dir(filename) ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
     HANDLE hFile = CreateFile(filename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, flags, NULL);
@@ -616,11 +618,11 @@ static int default_on_entry_end(tar_header_parsed_t *entry, void *userdata) {
         fclose(ud->fp_writer);
         ud->fp_writer = NULL;
     }
-    // FIXME: directory mtime should be set after all files in it have been extracted
+    /* FIXME: directory mtime should be set after all files in it have been extracted */
     struct stat st;
     if (lstat(entry->path, &st) == 0) {
         struct timeval tvs[2];
-        tvs[0].tv_sec = time(NULL);     // atime should be set to now, not atime in archive
+        tvs[0].tv_sec = time(NULL);     /* atime should be set to now, not atime in archive */
         tvs[0].tv_usec = 0;
         tvs[1].tv_sec = (long) entry->mtime;
         tvs[1].tv_usec = (long) ((entry->mtime - tvs[1].tv_sec) * 1000000);
